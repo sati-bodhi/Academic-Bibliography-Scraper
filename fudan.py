@@ -12,6 +12,7 @@ from datetime import date, datetime
 
 import json
 import re
+import uuid
 
 BASE_URL = 'http://www.gwz.fudan.edu.cn'
 
@@ -101,6 +102,19 @@ class Article:
             'download': self.download,
             'url': self.url,
             'publication': self.publication
+        }
+
+    def as_bib(self) -> Dict[str, str]:
+        id = uuid.uuid1()
+        return {
+            'ID': str(id.hex),
+            'ENTRYTYPE': 'article',
+            'author': self.author,
+            'title': self.title,
+            'journaltitle': self.publication,
+            'date': self.date.isoformat(),
+            'url': self.url,
+            # 'file': self.download,
         }
 
 

@@ -4,43 +4,37 @@ from datetime import date
 from pathlib import Path
 from typing import Generator, Iterable, Optional, List, ContextManager, Dict, Tuple
 from urllib.parse import unquote
+import uuid
 from itertools import chain, count
 import re
 import json
 from math import ceil
 
-# pip install proxy.py
-import proxy
-from proxy.http.exception import HttpRequestRejected
-from proxy.http.parser import HttpParser
-from proxy.http.proxy import HttpProxyBasePlugin
 from selenium.common.exceptions import (
     NoSuchElementException,
     StaleElementReferenceException,
     TimeoutException,
     WebDriverException,
 )
-from selenium.webdriver import Firefox, FirefoxProfile
+from selenium.webdriver import Firefox
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.proxy import ProxyType
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-# from urllib3.packages.six import X
 
 
 @dataclass
 class Result:
-    title: str        # Mozi's Theory of Human Nature and Politics
-    title_link: str   # http://big5.oversea.cnki.net/kns55/detail/detail.aspx?recid=&FileName=ZDXB202006009&DbName=CJFDLAST2021&DbCode=CJFD
+    title: str  # Mozi's Theory of Human Nature and Politics
+    title_link: str  # http://big5.oversea.cnki.net/kns55/detail/detail.aspx?recid=&FileName=ZDXB202006009&DbName=CJFDLAST2021&DbCode=CJFD
     html_link: Optional[str]  # http%3a%2f%2fkns.cnki.net%2fKXReader%2fDetail%3fdbcode%3dCJFD%26filename%3dZDXB202006009
-    author: str       # Xie Qiyang
-    source: str       # Vocational University News
+    author: str  # Xie Qiyang
+    source: str  # Vocational University News
     source_link: str  # http://big5.oversea.cnki.net/kns55/Navi/ScdbBridge.aspx?DBCode=CJFD&BaseID=ZDXB&UnitCode=&NaviLink=%e8%81%8c%e5%a4%a7%e5%ad%a6%e6%8a%a5
-    date: date   # 2020-12-28
-    download: str        #
-    database: str     # Periodical
+    date: date  # 2020-12-28
+    download: str  #
+    database: str  # Periodical
 
     @classmethod
     def from_row(cls, row: WebElement) -> 'Result':
@@ -52,8 +46,8 @@ class Result:
             # 'http://big5.oversea.cnki.net/kns55/ReadRedirectPage.aspx?flag=html&domain=http%3a%2f%2fkns.cnki.net%2fKXReader%2fDetail%3fdbcode%3dCJFD%26filename%3dZDXB202006009'
             html_link = unquote(
                 title_links[1]
-                .get_attribute('href')
-                .split('domain=', 1)[1])
+                    .get_attribute('href')
+                    .split('domain=', 1)[1])
         else:
             html_link = None
 
@@ -79,7 +73,6 @@ class Result:
             database=database.text,
         )
 
-
     def __str__(self):
         return (
             f'題名      {self.title}'
@@ -92,15 +85,50 @@ class Result:
 
     def as_dict(self) -> Dict[str, str]:
         return {
-        'author': self.author,
-        'title': self.title,
-        'publication': self.source,
-        'date': self.date.isoformat(),
-        'download': self.download,
-        'url': self.html_link,
-        'database': self.database,
+            'author': self.author,
+            'title': self.title,
+            'publication/university': self.source,
+            'date': self.date.isoformat(),
+            'download': self.download,
+            'url': self.html_link,
+            'database': self.database,
         }
 
+    def as_bib(self) -> Dict[str, str]:
+        id = uuid.uuid1()
+        if self.database == "期刊" or self.database == "輯刊":
+            return {
+                'ID': str(id.hex),
+                'ENTRYTYPE': 'article',
+                'author': self.author,
+                'title': self.title,
+                'journaltitle': self.source,
+                'date': self.date.isoformat(),
+                'url': self.html_link,
+                # 'file': self.download,
+            }
+        elif self.database == "博士":
+            return {
+                'ID': str(id.hex),
+                'ENTRYTYPE': 'phdthesis',
+                'author': self.author,
+                'title': self.title,
+                'institution': self.source,
+                'date': self.date.isoformat(),
+                'url': self.download,
+                # 'file': self.download,
+            }
+        elif self.database == "碩士":
+            return {
+                'ID': str(id.hex),
+                'ENTRYTYPE': 'mastersthesis',
+                'author': self.author,
+                'title': self.title,
+                'institution': self.source,
+                'date': self.date.isoformat(),
+                'url': self.download,
+                # 'file': self.download,
+            }
 
 class MainPage:
     def __init__(self, driver: WebDriver):
@@ -141,16 +169,14 @@ class MainPage:
     #     return elm
 
 
-
 class SearchResults:
     def __init__(self, driver: WebDriver):
         self.driver = driver
 
-
     def number_of_articles_and_pages(self) -> Tuple[
-    int,  # articles
-    int,  # pages
-    int,  # page size
+        int,  # articles
+        int,  # pages
+        int,  # page size
     ]:
         articles_elem = self.driver.find_element_by_css_selector('td.TitleLeftCell td')
         n_articles = int(re.search(r"\d+", articles_elem.text)[0])
@@ -162,15 +188,14 @@ class SearchResults:
 
         return n_articles, n_pages
 
-
     def get_structured_elements(self) -> Iterable[Result]:
+        "Get elements from html table, row by row."
         rows = self.driver.find_elements_by_xpath(
             '//table[@class="GridTableContent"]//tr[position() > 1]'
         )
 
         for row in rows:
             yield Result.from_row(row)
-
 
     def get_element_and_stop_page(self, *locator) -> WebElement:
         ignored_exceptions = (NoSuchElementException, StaleElementReferenceException)
@@ -189,65 +214,11 @@ class SearchResults:
             print("Last page reached")
 
 
-
-class ContentFilterPlugin(HttpProxyBasePlugin):
-    HOST_WHITELIST = {
-        b'ocsp.digicert.com',
-        b'ocsp.sca1b.amazontrust.com',
-        b'big5.oversea.cnki.net',
-    }
-
-    def handle_client_request(self, request: HttpParser) -> Optional[HttpParser]:
-        host = request.host or request.header(b'Host')
-        if host not in self.HOST_WHITELIST:
-            raise HttpRequestRejected(403)
-
-        if any(
-            suffix in request.path
-            for suffix in (
-                b'png', b'ico', b'jpg', b'gif', b'css',
-            )
-        ):
-            raise HttpRequestRejected(403)
-
-        return request
-
-    def before_upstream_connection(self, request):
-        return super().before_upstream_connection(request)
-    def handle_upstream_chunk(self, chunk):
-        return super().handle_upstream_chunk(chunk)
-    def on_upstream_connection_close(self):
-        pass
-
-
-@contextmanager
-def run_driver() -> ContextManager[WebDriver]:
-    prox_type = ProxyType.MANUAL['ff_value']
-    prox_host = '127.0.0.1'
-    prox_port = 8889
-
-    profile = FirefoxProfile()
-    profile.set_preference('network.proxy.type', prox_type)
-    profile.set_preference('network.proxy.http', prox_host)
-    profile.set_preference('network.proxy.ssl', prox_host)
-    profile.set_preference('network.proxy.http_port', prox_port)
-    profile.set_preference('network.proxy.ssl_port', prox_port)
-    profile.update_preferences()
-
-    plugin = f'{Path(__file__).stem}.{ContentFilterPlugin.__name__}'
-
-    with proxy.start((
-        '--hostname', prox_host,
-        '--port', str(prox_port),
-        '--plugins', plugin,
-    )), Firefox(profile) as driver:
-        yield driver
-
-
-def loop_through_results(driver):
+def loop_through_results(driver) -> Iterable[SearchResults]:
+    "Iterate through each page of the search result."
     result_page = SearchResults(driver)
     n_articles, n_pages = result_page.number_of_articles_and_pages()
-    
+
     print(f"{n_articles} found. A maximum of 500 will be retrieved.")
 
     for page in count(1):
@@ -265,7 +236,7 @@ def loop_through_results(driver):
         result_page = SearchResults(driver)
 
 
-def save_articles(articles: Iterable, file_prefix: str) -> None:
+def save_articles(articles: Iterable[SearchResults], file_prefix: str) -> None:
     file_path = Path(file_prefix).with_suffix('.json')
 
     with file_path.open('w') as file:
@@ -283,7 +254,7 @@ def save_articles(articles: Iterable, file_prefix: str) -> None:
 
 
 def query(keyword, driver) -> None:
-
+    "Submit query to database."
     page = MainPage(driver)
     page.submit_search(keyword)
     page.switch_to_frame()
@@ -291,9 +262,8 @@ def query(keyword, driver) -> None:
 
 
 def search(keyword):
-
-    with run_driver() as driver:
-        driver.get('http://big5.oversea.cnki.net/kns55/')
+    with Firefox() as driver:
+        driver.get('http://cnki.sris.com.tw/kns55')
         query(keyword, driver)
 
         print("正在搜尋中國期刊網……")
@@ -306,4 +276,5 @@ def search(keyword):
 
 
 if __name__ == '__main__':
-    search('尹至')
+    result = search('尹至')
+    save_articles(result, 'cnki_search_result.json')

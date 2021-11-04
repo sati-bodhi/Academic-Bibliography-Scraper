@@ -9,6 +9,7 @@ from datetime import date, datetime
 import json
 import os
 import re
+import uuid
 
 @dataclass
 class Result:
@@ -52,16 +53,30 @@ class Result:
             'publication': self.publication,
         }
 
+    def as_bib(self) -> Dict[str, str]:
+        id = uuid.uuid1()
+        return {
+            'ID': str(id.hex),
+            'ENTRYTYPE': 'article',
+            'author': self.author,
+            'title': self.title,
+            'journaltitle': self.publication,
+            'date': self.date.isoformat(),
+            'url': self.url,
+            # 'file': self.download,
+        }
 
 def submit_query(keyword: str):
     print("正在搜尋武漢大學簡帛網……")
     print(f"關鍵字：「{keyword}」")
-    query = {"searchword": keyword}
+    query = {"searchword": keyword,
+             "field": "content"}
     with post('http://www.bsm.org.cn/pages.php?pagename=search', query) as resp:
         resp.raise_for_status()
         doc = BeautifulSoup(resp.text, 'html.parser')
         content = doc.find('div', class_='record_list_main')
         rows = content.select('ul')
+
 
 
     for row in rows:
@@ -73,21 +88,22 @@ def submit_query(keyword: str):
             captions_tag, date_tag = row.findAll('li')
             caption_anchors = captions_tag.findAll('a')
             category, caption = [item.text for item in caption_anchors]
-            url = caption_anchors[1]['href']
-            # print(caption_anchors[1].attrs)
-            meta = caption_anchors[1]['title']
-            published_date = re.sub("[()]", "", date_tag.text)
-            try:
-                title = re.search("文章標題：(.+)\r", meta).group(1)
-            except:
-                title = caption.split("：",1)[1]
+            if category != "消息":
+                url = caption_anchors[1]['href']
+                # print(caption_anchors[1].attrs)
+                meta = caption_anchors[1]['title']
+                published_date = re.sub("[()]", "", date_tag.text)
+                try:
+                    title = re.search("文章標題：(.+)\r", meta).group(1)
+                except:
+                    title = caption.split("：",1)[1]
 
-            yield {
-                "category": category,
-                "caption": caption,
-                "title": title, 
-                "date": published_date,
-                "url": url,}
+                yield {
+                    "category": category,
+                    "caption": caption,
+                    "title": title,
+                    "date": published_date,
+                    "url": url,}
 
 
 def remove_json_if_exists(filename):
@@ -109,10 +125,11 @@ def search(query: str):
 
         # print(article)
         # print()
-
+        #
         # with open('wuhan_search_result.json', 'a') as file:
         #     json.dump(asdict(article), file, ensure_ascii=False, indent=4)
 
 
 if __name__ == '__main__':
-    search('郭店')
+    submit_query('郭店')
+    # search('郭店')

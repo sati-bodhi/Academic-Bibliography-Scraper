@@ -1,0 +1,65 @@
+#+TITLE: Academic Bibliography Scraper
+
+* Introduction
+
+This is an extensible codebase for posting queries to academic databases programatically. The results can be stored in a json or bib file to be imported into bibliographic databases such as Zotero. In situations where articles are available for download, URLs collected during search can also be used to download the files in bulk. This can save scholars and their research assistants a lot of time especially when there is heavy-duty work to be done.
+
+* File structure
+
+Each database is given it's own scraper file, which is named accordingly. We currently have scrapers for the following databases, most commonly used in Chinese Paleography research:
+
+| Database (中文)                  | English Name                                                              | Filename   |
+|----------------------------------+---------------------------------------------------------------------------+------------|
+| 中國期刊網                       | CNKI                                                                      | cnki.py    |
+| 武漢大學簡帛網                   | Center of Bamboo Silk Manuscripts, Wuhan University                       | wuhan.py   |
+| 清華大學出土文獻研究與保護中心   | Research and Conservation Center for Unearthed Texts, Tsinghua University | qinghua.py |
+| 復旦大學出土文獻與古文字研究中心 | Fudan University Unearthed and Ancient Characters Research Center         | fudan.py   |
+
+Each file exposes a ~search~ function, which can be called collectively by ~main.py~ to post multiple queries to multiple databases in bulk.
+
+~main.py~ provides a ~search~ function that accepts multiple keyword and database arguments to serve the above functionality.
+
+Finally, a ~save_articles~ function allows the user to save the search results as ~json~ or ~bibtex~ files for viewing and further processing.
+
+* Usage
+
+1. Clone this repo to a local directory with:
+
+#+BEGIN_SRC bash :results output
+git clone https://github.com/sati-bodhi/Academic-Bibliography-Scraper.git
+#+END_SRC
+
+2. Open ~main.py~, scroll to the end of the file and change the arguments for the ~search~ and ~save_articles~ function accordingly.
+
+#+BEGIN_SRC python :results output
+if __name__ == '__main__':
+    rslt = search(['尹至'], 'cnki', 'wuhan', 'qinghua')
+    save_articles(rslt, 'search_result', 'bib')
+#+END_SRC
+
+- Multiple queries can be posted to a single database as such:
+
+#+BEGIN_SRC python :results output
+if __name__ == '__main__':
+    rslt = search(['尹至', '郭店'], 'wuhan')
+    save_articles(rslt, 'search_result', 'bib')
+#+END_SRC
+
+- Search results can be saved as ~json~ instead of ~bib~ by changing the 3rd argument of the ~save_articles~ function.
+
+  #+BEGIN_SRC python :results output
+if __name__ == '__main__':
+    rslt = search(['尹至', '郭店'], 'wuhan')
+    save_articles(rslt, 'search_result', 'json')
+  #+END_SRC
+
+- The 2nd argument would give the name of the file, which will be 'search_result.json' in the example above.
+
+
+* Further development
+
+Developers are welcome to extend or amend the current codebase by submitting pull requests.
+
+* Acknowledgement
+
+I would like to thank [[https://codereview.stackexchange.com/users/25834/reinderien][Reinderien]] for helping out with the code and Dr. Pham Lee-Moi for partially funding this project.

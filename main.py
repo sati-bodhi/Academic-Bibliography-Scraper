@@ -3,6 +3,9 @@ import json
 from typing import Iterable, Tuple, List
 from pathlib import Path
 
+import bibtexparser
+from bibtexparser.bwriter import BibTexWriter
+from bibtexparser.bibdatabase import BibDatabase
 
 DB_DICT = {
     "cnki": cnki.search,
@@ -11,23 +14,39 @@ DB_DICT = {
     "qinghua": qinghua.search,
     }
 
+def save_articles(articles: Iterable, file_prefix: str, output_format: str) -> None:
+    file_path = Path(file_prefix).with_suffix(f'.{output_format}')
 
-def save_articles(articles: Iterable, file_prefix: str) -> None:
-    file_path = Path(file_prefix).with_suffix('.json')
+    if output_format == "json":
 
-    with file_path.open('w') as file:
-        file.write('[\n')
-        first = True
+        with file_path.open('w') as file:
+            file.write('[\n')
+            first = True
+
+            for article in articles:
+
+                if first:
+                    first = False
+                else:
+                    file.write(',\n')
+                json.dump(article.as_dict(), file, ensure_ascii=False, indent=4)
+
+            file.write('\n]\n')
+
+    elif output_format == "bib":
+
+        db = BibDatabase()
 
         for article in articles:
+            if article.as_bib():
+                bib_dict = article.as_bib()
+                bib_dict = {k: v for k, v in bib_dict.items() if v is not None}  # Remove none values.
+                db.entries.append(bib_dict)
 
-            if first:
-                first = False
-            else:
-                file.write(',\n')
-            json.dump(article.as_dict(), file, ensure_ascii=False, indent=4)
+        writer = BibTexWriter()
 
-        file.write('\n]\n')
+        with file_path.open('w') as bibfile:
+            bibfile.write(writer.write(db))
 
 
 def db_search(keyword: str, *args: Tuple[str]):
@@ -49,5 +68,5 @@ def search(keywords: List[str], *args: str):
 
 
 if __name__ == '__main__':
-    rslt = search(['郭店', '尹至'],'qinghua', 'wuhan')
-    save_articles(rslt, 'search_result')
+    rslt = search(['尹至'], 'cnki', 'wuhan', 'qinghua')
+    save_articles(rslt, 'search_result', 'bib')
